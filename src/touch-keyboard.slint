@@ -1,19 +1,20 @@
 export global Keyboard {
-    callback send(string);
+    callback send(int, [int]);
 }
 
 component Button inherits Image {
     min-width: 80px;
     min-height: 80px;
     in property <image> icon;
-    in property <string> shortcut;
+    in property <int> modifier;
+    in property <[int]> keycodes; // https://usb.org/sites/default/files/hut1_3_0.pdf
     Rectangle {
         border-width: 2px;
         border-color: black;
     }
     source: root.icon;
-    ta := TouchArea {
-        clicked => { Keyboard.send(root.shortcut); }
+    TouchArea {
+        clicked => { Keyboard.send(root.modifier, root.keycodes); }
     }
 }
 
@@ -26,25 +27,27 @@ export component App inherits Window {
         Row {
             Button {
                 icon: @image-url("images/task-jp.png");
-                shortcut: "Meta+F1";
+                modifier: 8; // Meta(0x08)
+                keycodes: [58, 0, 0, 0, 0, 0]; // F1
             }
             Button {
                 icon: @image-url("images/signalslot.png");
-                shortcut: "Meta+F2";
+                modifier: 8; // Meta(0x08)
+                keycodes: [61, 0, 0, 0, 0, 0]; // F4
             }
             Button {
                 icon: @image-url("images/windows.png");
-                shortcut: "Meta+F3";
+                modifier: 8; // Meta(0x08)
+                keycodes: [62, 0, 0, 0, 0, 0]; // F5
             }
             Button {
-                icon: @image-url("images/mac.png");
-                shortcut: "Meta+F4";
+                icon: @image-url("images/slint.png");
+                modifier: 8; // Meta(0x08)
+                keycodes: [63, 0, 0, 0, 0, 0]; // F6
             }
         }
         Row {
             Button {
-                icon: @image-url("images/slint.png");
-                shortcut: "Meta+F7";
             }
             Button {
 

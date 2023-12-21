@@ -26,6 +26,9 @@ use rp_pico::hal::{self, pac, prelude::*, Timer};
 use shared_bus::BusMutex;
 use slint::platform::software_renderer as renderer;
 use slint::platform::{PointerEventButton, WindowEvent};
+use usb_device as usbd;
+use usbd::prelude::UsbDeviceBuilder;
+use usbd_hid::descriptor::SerializedDescriptor;
 
 #[cfg(feature = "panic-probe")]
 use panic_probe as _;
@@ -60,6 +63,13 @@ type SpiPins = (
 
 type EnabledSpi = hal::Spi<hal::spi::Enabled, pac::SPI1, SpiPins, 8>;
 
+pub struct KeyInfo {
+    pub modifier: u8,
+    pub keycodes: [u8; 6],
+}
+
+pub static mut KEY_INFO: Option<KeyInfo> = None;
+
 #[derive(Clone)]
 struct SharedSpiWithFreq {
     mutex: &'static shared_bus::NullMutex<(EnabledSpi, Hertz<u32>)>,
@@ -87,8 +97,13 @@ impl Transfer<u8> for SharedSpiWithFreq {
     }
 }
 
+static mut USB_BUS_ALLOCATOR: Option<usbd::class_prelude::UsbBusAllocator<hal::usb::UsbBus>> = None;
+static mut USB_DEVICE: Option<usbd::prelude::UsbDevice<'static, hal::usb::UsbBus>> = None;
+static mut USB_HID_KEYBOARD: Option<usbd_hid::hid_class::HIDClass<'static, hal::usb::UsbBus>> =
+    None;
+
 pub fn init() {
-    let mut pac = pac::Peripherals::take().unwrap();
+    let mut pac: pac::Peripherals = pac::Peripherals::take().unwrap();
     let core = pac::CorePeripherals::take().unwrap();
 
     let mut watchdog = hal::watchdog::Watchdog::new(pac.WATCHDOG);
@@ -200,6 +215,36 @@ pub fn init() {
         pac::NVIC::unmask(pac::Interrupt::TIMER_IRQ_0);
     }
 
+    // USB 関連の処理
+    let bus = hal::usb::UsbBus::new(
+        pac.USBCTRL_REGS,
+        pac.USBCTRL_DPRAM,
+        clocks.usb_clock,
+        true,
+        &mut pac.RESETS,
+    );
+    unsafe {
+        USB_BUS_ALLOCATOR = Some(usbd::class_prelude::UsbBusAllocator::new(bus));
+    }
+    let usb_bus_allocator = unsafe { USB_BUS_ALLOCATOR.as_ref().unwrap() };
+
+    let vid_pid = usbd::device::UsbVidPid(0x6666, 0x0487);
+    let hid = usbd_hid::hid_class::HIDClass::new(
+        &usb_bus_allocator,
+        usbd_hid::descriptor::KeyboardReport::desc(),
+        60,
+    );
+    let dev = UsbDeviceBuilder::new(&usb_bus_allocator, vid_pid)
+        .manufacturer("Signal Slot, Inc.")
+        .product("Pico Touch Keyboard")
+        .serial_number("487")
+        .build();
+    unsafe {
+        USB_HID_KEYBOARD = Some(hid);
+        USB_DEVICE = Some(dev);
+        pac::NVIC::unmask(pac::Interrupt::USBCTRL_IRQ);
+    }
+
     let dma = pac.DMA.split(&mut pac.RESETS);
     let pio = PioTransfer::Idle(
         dma.ch0,
@@ -219,6 +264,29 @@ pub fn init() {
         touch: touch.into(),
     }))
     .expect("backend already initialized");
+}
+
+#[allow(non_snake_case)]
+#[interrupt]
+unsafe fn USBCTRL_IRQ() {
+    let usb_dev = USB_DEVICE.as_mut().unwrap();
+    let usb_hid_keyboard = USB_HID_KEYBOARD.as_mut().unwrap();
+
+    let mut modifier = 0u8;
+    let mut keycodes = [0u8; 6];
+    if let Some(ki) = KEY_INFO.take() {
+        modifier = ki.modifier;
+        keycodes = ki.keycodes;
+    }
+
+    let report = usbd_hid::descriptor::KeyboardReport {
+        modifier,
+        reserved: 0,
+        leds: 0,
+        keycodes,
+    };
+    usb_hid_keyboard.push_input(&report).ok();
+    usb_dev.poll(&mut [usb_hid_keyboard]);
 }
 
 struct PicoBackend<DrawBuffer, Touch> {
