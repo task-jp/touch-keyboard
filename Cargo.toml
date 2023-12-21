@@ -23,6 +23,13 @@ rp-pico = "0.8"
 # rp2040-hal = { version="0.8", features=["rt", "critical-section-impl"] }
 # rp2040-boot2 = "0.2"
 
+# We're using Slint and its mcu-board-support
+slint = { version = "1.3.2", git = "https://github.com/slint-ui/slint", default-features = false }
+mcu-board-support = { version = "1.3.2", git = "https://github.com/slint-ui/slint" }
+
+[build-dependencies]
+slint-build = { version = "1.3.2", git = "https://github.com/slint-ui/slint" }
+
 # cargo build/run
 [profile.dev]
 codegen-units = 1

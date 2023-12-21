@@ -1,0 +1,74 @@
+export global Keyboard {
+    callback send(string);
+}
+
+component Button inherits Image {
+    min-width: 80px;
+    min-height: 80px;
+    in property <image> icon;
+    in property <string> shortcut;
+    Rectangle {
+        border-width: 2px;
+        border-color: black;
+    }
+    source: root.icon;
+    ta := TouchArea {
+        clicked => { Keyboard.send(root.shortcut); }
+    }
+}
+
+export component App inherits Window {
+    width: 320px;
+    height: 240px;
+    background: white;
+
+    GridLayout {
+        Row {
+            Button {
+                icon: @image-url("images/task-jp.png");
+                shortcut: "Meta+F1";
+            }
+            Button {
+                icon: @image-url("images/signalslot.png");
+                shortcut: "Meta+F2";
+            }
+            Button {
+                icon: @image-url("images/windows.png");
+                shortcut: "Meta+F3";
+            }
+            Button {
+                icon: @image-url("images/mac.png");
+                shortcut: "Meta+F4";
+            }
+        }
+        Row {
+            Button {
+                icon: @image-url("images/slint.png");
+                shortcut: "Meta+F7";
+            }
+            Button {
+
+            }
+            Button {
+
+            }
+            Button {
+
+            }
+        }
+        Row {
+            Button {
+
+            }
+            Button {
+
+            }
+            Button {
+
+            }
+            Button {
+
+            }
+        }
+    }
+}
